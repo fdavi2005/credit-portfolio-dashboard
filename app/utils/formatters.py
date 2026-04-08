@@ -16,6 +16,16 @@ def format_number(value: float) -> str:
     return f"{value:,.0f}".replace(",", ".")
 
 
+def format_currency_compact(value: float) -> str:
+    """Formata valor em milhões sem prefixo R$: 27454831 → '27,5 M'"""
+    return f"{value / 1_000_000:.1f} M".replace(".", ",")
+
+
+def format_currency_k(value: float) -> str:
+    """Formata valor em milhares sem prefixo R$: 74700 → '74,7 K'"""
+    return f"{value / 1_000:.1f} K".replace(".", ",")
+
+
 def format_months(value: float) -> str:
     """Formata prazo em meses: 24 meses"""
     return f"{value:.1f} meses".replace(".", ",")

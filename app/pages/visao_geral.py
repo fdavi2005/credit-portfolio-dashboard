@@ -26,6 +26,8 @@ from app.utils.calculations import (
 from app.utils.data_loader import load_data
 from app.utils.formatters import (
     format_currency,
+    format_currency_compact,
+    format_currency_k,
     format_months,
     format_number,
     format_percent,
@@ -33,10 +35,96 @@ from app.utils.formatters import (
 from config.constants import STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO
 
 st.set_page_config(
-    page_title="Visão Geral — Carteira Consignado",
+    page_title="Visão Geral — Carteira",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
+
+st.markdown("""
+<style>
+/* ── Tipografia ─────────────────────────────────────────────────────────── */
+html, body, [class*="css"] {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    letter-spacing: 0.01em;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+/* ── Background principal ───────────────────────────────────────────────── */
+.stApp { background-color: #0a0f1e !important; }
+.stApp > header { background: transparent; }
+
+/* ── Espaçamento entre seções ───────────────────────────────────────────── */
+[data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+    gap: 0.25rem;
+}
+
+div[data-testid="stSubheader"] {
+    margin-top: 1.5rem;
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: #a0aec0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* ── Divisor ────────────────────────────────────────────────────────────── */
+hr {
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    margin: 1rem 0 !important;
+}
+
+/* ── Cards de KPI (st.metric) ───────────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(100, 160, 255, 0.12);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    transition: border-color 0.2s;
+}
+
+[data-testid="stMetric"]:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #718096 !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 1.6rem !important;
+    font-weight: 700;
+    color: #e2e8f0 !important;
+    line-height: 1.2;
+}
+
+[data-testid="stMetricDelta"] {
+    font-size: 0.78rem !important;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background-color: #080d18 !important;
+    border-right: 1px solid rgba(100, 160, 255, 0.08);
+}
+
+[data-testid="stSidebar"] .stMarkdown p {
+    font-size: 0.78rem;
+    color: #718096;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Dados
@@ -73,7 +161,7 @@ df_filtered = df[
 # ---------------------------------------------------------------------------
 # Cabeçalho
 # ---------------------------------------------------------------------------
-st.title("Visão Geral da Carteira")
+st.markdown("<h1 style='text-align: center;'>Carteira de Crédito</h1>", unsafe_allow_html=True)
 st.caption(
     f"Carteira consignado pré-fixado · {format_number(len(df_filtered))} contratos exibidos "
     f"(total: {format_number(len(df))})"
@@ -103,7 +191,7 @@ st.subheader("Volume e Operações")
 render_kpi_row([
     {
         "label": "Saldo da Carteira Ativa",
-        "value": format_currency(saldo_total),
+        "value": format_currency_compact(saldo_total),
         "help": "Saldo devedor total de contratos ativos e inadimplentes (status ≠ liquidado)",
     },
     {
@@ -137,12 +225,12 @@ render_kpi_row([
     },
     {
         "label": "Ticket Médio",
-        "value": format_currency(ticket),
+        "value": format_currency_k(ticket),
         "help": "Valor médio de contratação dos contratos ativos",
     },
     {
         "label": "Taxa Média Ponderada (a.m.)",
-        "value": format_percent(taxa_mensal, decimals=4),
+        "value": format_percent(taxa_mensal, decimals=2),
         "help": "Taxa mensal média ponderada pelo saldo devedor — proxy de rentabilidade da carteira",
     },
     {
@@ -151,8 +239,8 @@ render_kpi_row([
         "help": "Taxa anual equivalente à taxa mensal ponderada: (1 + i_m)^12 − 1",
     },
     {
-        "label": "Prazo Médio Residual",
-        "value": format_months(prazo_medio),
+        "label": "Prazo Médio Residual (meses)",
+        "value": format_number(prazo_medio),
         "help": "Prazo remanescente médio ponderado pelo saldo devedor",
     },
 ])
