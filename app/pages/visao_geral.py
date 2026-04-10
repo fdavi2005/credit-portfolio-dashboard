@@ -12,7 +12,9 @@ from app.components.charts import (
     chart_distribuicao_status,
     chart_distribuicao_taxa,
     chart_evolucao_originacao,
-    chart_saldo_por_prazo,
+    chart_evolucao_saldo_prazo,
+    chart_evolucao_taxa_faixas,
+    chart_participacao_prazo,
 )
 from app.components.kpi_cards import render_kpi_row
 from app.utils.calculations import (
@@ -152,11 +154,27 @@ with st.sidebar:
         key="vg_prazo",
     )
 
+    st.divider()
+    st.markdown("**Originação**")
+
+    anos_disponiveis = sorted(df["data_inicio"].dt.year.unique().tolist())
+    anos_default = anos_disponiveis[-3:]
+    ano_sel = st.multiselect(
+        "Ano",
+        options=anos_disponiveis,
+        default=anos_default,
+        key="vg_ano_originacao",
+    )
+
     st.caption("Data de referência: 30/03/2026")
 
 df_filtered = df[
     df["status"].isin(status_sel) & df["prazo_meses"].isin(prazo_sel)
 ]
+df_filtered_anos = (
+    df_filtered[df_filtered["data_inicio"].dt.year.isin(ano_sel)]
+    if ano_sel else df_filtered.iloc[:0]
+)
 
 # ---------------------------------------------------------------------------
 # Cabeçalho
@@ -260,23 +278,38 @@ with col1:
 
 with col2:
     st.plotly_chart(
-        chart_saldo_por_prazo(df_filtered),
+        chart_participacao_prazo(df_filtered_anos),
         use_container_width=True,
     )
 
 # ---------------------------------------------------------------------------
 # Gráficos — linha 2
 # ---------------------------------------------------------------------------
-col3, col4 = st.columns(2)
+st.plotly_chart(
+    chart_evolucao_saldo_prazo(df_filtered_anos),
+    use_container_width=True,
+)
 
-with col3:
-    st.plotly_chart(
-        chart_evolucao_originacao(df_filtered),
-        use_container_width=True,
-    )
+# ---------------------------------------------------------------------------
+# Gráficos — linha 3
+# ---------------------------------------------------------------------------
+st.plotly_chart(
+    chart_evolucao_taxa_faixas(df_filtered_anos),
+    use_container_width=True,
+)
 
-with col4:
-    st.plotly_chart(
-        chart_distribuicao_taxa(df_filtered),
-        use_container_width=True,
-    )
+# ---------------------------------------------------------------------------
+# Gráficos — linha 4
+# ---------------------------------------------------------------------------
+st.plotly_chart(
+    chart_evolucao_originacao(df_filtered_anos),
+    use_container_width=True,
+)
+
+# ---------------------------------------------------------------------------
+# Gráficos — linha 5
+# ---------------------------------------------------------------------------
+st.plotly_chart(
+    chart_distribuicao_taxa(df_filtered),
+    use_container_width=True,
+)
