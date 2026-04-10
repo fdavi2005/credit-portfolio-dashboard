@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from config.constants import STATUS_COLORS, STATUS_LIQUIDADO
+from config.constants import STATUS_COLORS, STATUS_INADIMPLENTE, STATUS_LIQUIDADO
 
 _LAYOUT_DEFAULTS = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -224,6 +224,135 @@ def chart_evolucao_originacao(df: pd.DataFrame) -> go.Figure:
         yaxis=dict(tickprefix="R$ "),
         xaxis=dict(categoryorder="array", categoryarray=_MESES_PT),
         legend=dict(title="Ano", orientation="h", y=-0.25, x=0),
+    )
+    return fig
+
+
+_AGING_BINS = [0, 5, 10, 20, 30, 101]
+_AGING_LABELS = ["0–5%", "5–10%", "10–20%", "20–30%", ">30%"]
+_AGING_COLORS = ["#f1c40f", "#f4a261", "#e67e22", "#e74c3c", "#c0392b"]
+
+
+def _monthly_npl_series(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Para cada mês entre data_inicio mínima e a data de referência, filtra
+    contratos ativos no mês (mesma lógica de _monthly_snapshot) e calcula
+    NPL = sum(valor_em_atraso) / sum(saldo_devedor) × 100.
+    """
+    base = df[df["status"] != STATUS_LIQUIDADO].copy()
+    if base.empty:
+        return pd.DataFrame(columns=["ano_mes", "npl_pct"])
+
+    months = pd.period_range(
+        base["data_inicio"].min().to_period("M"),
+        _REF_DATE.to_period("M"),
+        freq="M",
+    )
+
+    rows = []
+    for m in months:
+        m_start = m.to_timestamp()
+        m_next = (m + 1).to_timestamp()
+        mask = (base["data_inicio"] < m_next) & (base["data_vencimento"] >= m_start)
+        subset = base[mask]
+        saldo = subset["saldo_devedor"].sum()
+        rows.append({
+            "ano_mes": m.strftime("%Y-%m"),
+            "npl_pct": subset["valor_em_atraso"].sum() / saldo * 100 if saldo > 0 else 0.0,
+        })
+
+    return pd.DataFrame(rows)
+
+
+def chart_evolucao_npl(df: pd.DataFrame) -> go.Figure:
+    """Linha com área: evolução do NPL (%) mês a mês."""
+    series = _monthly_npl_series(df)
+    if series.empty:
+        return go.Figure()
+
+    fig = go.Figure(go.Scatter(
+        x=series["ano_mes"],
+        y=series["npl_pct"],
+        mode="lines+markers",
+        line=dict(color="#e74c3c", width=2),
+        marker=dict(size=5, color="#e74c3c"),
+        fill="tozeroy",
+        fillcolor="rgba(231, 76, 60, 0.1)",
+        name="NPL",
+    ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Evolução do NPL (%) Mês a Mês",
+        yaxis=dict(ticksuffix="%"),
+        showlegend=False,
+    )
+    fig.update_xaxes(tickangle=45, nticks=24)
+    return fig
+
+
+def chart_atraso_por_prazo(df: pd.DataFrame) -> go.Figure:
+    """Barras horizontais: valor em atraso por prazo original."""
+    base = df[df["status"] == STATUS_INADIMPLENTE]
+    if base.empty:
+        return go.Figure()
+
+    grouped = (
+        base.groupby("prazo_meses")["valor_em_atraso"]
+        .sum()
+        .reset_index()
+        .sort_values("prazo_meses")
+    )
+    grouped["label"] = grouped["prazo_meses"].astype(str) + "m"
+
+    fig = go.Figure(go.Bar(
+        x=grouped["valor_em_atraso"],
+        y=grouped["label"],
+        orientation="h",
+        marker_color=[_PRAZO_COLORS.get(p, "#aaaaaa") for p in grouped["prazo_meses"]],
+        text=grouped["valor_em_atraso"].apply(lambda v: f"R$ {v / 1_000:.0f}K"),
+        textposition="outside",
+    ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Valor em Atraso por Prazo (R$)",
+        xaxis=dict(tickprefix="R$ "),
+    )
+    return fig
+
+
+def chart_aging_faixas(df: pd.DataFrame) -> go.Figure:
+    """Barras: concentração do valor em atraso por faixa de % de atraso sobre o saldo."""
+    base = df[df["status"] == STATUS_INADIMPLENTE].copy()
+    if base.empty:
+        return go.Figure()
+
+    base["pct_atraso"] = base["valor_em_atraso"] / base["saldo_devedor"] * 100
+    base["faixa"] = pd.cut(
+        base["pct_atraso"],
+        bins=_AGING_BINS,
+        labels=_AGING_LABELS,
+        right=False,
+    ).astype(str)
+
+    grouped = (
+        base.groupby("faixa")["valor_em_atraso"]
+        .sum()
+        .reindex(_AGING_LABELS, fill_value=0)
+        .reset_index()
+    )
+    grouped.columns = ["faixa", "valor_em_atraso"]
+
+    fig = go.Figure(go.Bar(
+        x=grouped["faixa"],
+        y=grouped["valor_em_atraso"],
+        marker_color=_AGING_COLORS,
+        text=grouped["valor_em_atraso"].apply(lambda v: f"R$ {v / 1_000:.0f}K"),
+        textposition="outside",
+    ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Aging: Valor em Atraso por Faixa (% sobre Saldo Devedor)",
+        yaxis=dict(tickprefix="R$ "),
     )
     return fig
 
