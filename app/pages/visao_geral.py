@@ -45,88 +45,39 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* ── Tipografia ─────────────────────────────────────────────────────────── */
-html, body, [class*="css"] {
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-    letter-spacing: 0.01em;
+.header-banner {
+    background: linear-gradient(135deg, #1a0a3d 0%, #1a3a8f 100%);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1rem;
+    text-align: center;
 }
-
-h1, h2, h3 {
-    font-weight: 600;
-    letter-spacing: -0.02em;
-}
-
-/* ── Background principal ───────────────────────────────────────────────── */
-.stApp { background-color: #0a0f1e !important; }
-.stApp > header { background: transparent; }
-
-/* ── Espaçamento entre seções ───────────────────────────────────────────── */
-[data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
-    gap: 0.25rem;
-}
-
-div[data-testid="stSubheader"] {
-    margin-top: 1.5rem;
-    margin-bottom: 0.25rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    color: #a0aec0;
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
-
-/* ── Divisor ────────────────────────────────────────────────────────────── */
-hr {
-    border-color: rgba(255, 255, 255, 0.06) !important;
-    margin: 1rem 0 !important;
-}
-
-/* ── Cards de KPI (st.metric) ───────────────────────────────────────────── */
-[data-testid="stMetric"] {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(100, 160, 255, 0.12);
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    transition: border-color 0.2s;
-}
-
-[data-testid="stMetric"]:hover {
-    border-color: rgba(255, 255, 255, 0.16);
-}
-
-[data-testid="stMetricLabel"] {
-    font-size: 0.72rem !important;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #718096 !important;
-}
-
-[data-testid="stMetricValue"] {
-    font-size: 1.6rem !important;
+.header-banner h1 {
+    color: #ffffff !important;
+    font-size: 1.9rem;
     font-weight: 700;
-    color: #e2e8f0 !important;
-    line-height: 1.2;
+    margin: 0;
+    letter-spacing: -0.01em;
 }
-
-[data-testid="stMetricDelta"] {
-    font-size: 0.78rem !important;
+.header-banner p {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0;
 }
-
-/* ── Sidebar ────────────────────────────────────────────────────────────── */
-[data-testid="stSidebar"] {
-    background-color: #080d18 !important;
-    border-right: 1px solid rgba(100, 160, 255, 0.08);
+[data-testid="stMetric"] {
+    background: #dbe7f5;
+    border: 1px solid rgba(26, 58, 139, 0.15);
+    border-radius: 12px;
 }
-
-[data-testid="stSidebar"] .stMarkdown p {
-    font-size: 0.78rem;
-    color: #718096;
+[data-testid="stMetricLabel"] {
+    text-align: center;
+}
+[data-testid="stMetricValue"] {
+    text-align: center;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ---------------------------------------------------------------------------
 # Dados
@@ -179,10 +130,15 @@ df_filtered_anos = (
 # ---------------------------------------------------------------------------
 # Cabeçalho
 # ---------------------------------------------------------------------------
-st.markdown("<h1 style='text-align: center;'>Carteira de Crédito</h1>", unsafe_allow_html=True)
-st.caption(
-    f"Carteira consignado pré-fixado · {format_number(len(df_filtered))} contratos exibidos "
-    f"(total: {format_number(len(df))})"
+st.markdown(
+    f"""
+    <div class="header-banner">
+        <h1>Carteira de Crédito</h1>
+        <p>Consignado pré-fixado &nbsp;·&nbsp; {format_number(len(df_filtered))} contratos exibidos
+        (total: {format_number(len(df))})</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 if df_filtered.empty:
