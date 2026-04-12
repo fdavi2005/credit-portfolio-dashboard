@@ -14,4 +14,6 @@ def load_data() -> pd.DataFrame:
     df = pd.read_csv(DATA_MOCK_PATH, sep=";", decimal=",", encoding="utf-8-sig")
     df["data_inicio"] = pd.to_datetime(df["data_inicio"])
     df["data_vencimento"] = pd.to_datetime(df["data_vencimento"])
+    df["data_inadimplencia"] = pd.to_datetime(df["data_inadimplencia"])
+    df["data_retorno_pagamento"] = pd.to_datetime(df["data_retorno_pagamento"])
     return df

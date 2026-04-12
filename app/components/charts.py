@@ -233,13 +233,47 @@ _AGING_LABELS = ["0–5%", "5–10%", "10–20%", "20–30%", ">30%"]
 _AGING_COLORS = ["#f1c40f", "#f4a261", "#e67e22", "#e74c3c", "#c0392b"]
 
 
+def _saldo_historico(subset: pd.DataFrame, k: "pd.Series") -> "pd.Series":
+    """
+    Recalcula o saldo devedor de cada contrato em `subset` após `k` meses
+    decorridos desde a data de início, usando o sistema Price.
+
+    k é uma Series com o mesmo índice de subset.
+    """
+    import numpy as np
+
+    pv = subset["valor_contrato"]
+    i  = subset["taxa_juros_mensal"] / 100
+    n  = subset["prazo_meses"]
+    pmt = subset["parcela_mensal"]
+
+    fator = (1 + i) ** k
+    saldo = pv * fator - pmt * (fator - 1) / i
+
+    # k <= 0: ainda não iniciou pagamentos — saldo = PV
+    saldo = saldo.where(k > 0, pv)
+    # k >= prazo: contrato encerrado — saldo = 0
+    saldo = saldo.where(k < n, 0.0)
+    # garantir não-negativo por arredondamento
+    return saldo.clip(lower=0)
+
+
 def _monthly_npl_series(df: pd.DataFrame) -> pd.DataFrame:
     """
     Para cada mês entre data_inicio mínima e a data de referência, filtra
-    contratos ativos no mês (mesma lógica de _monthly_snapshot) e calcula
-    NPL = sum(valor_em_atraso) / sum(saldo_devedor) × 100.
+    contratos ativos no mês, reconstrói o saldo devedor histórico pelo
+    sistema Price e calcula NPL com base nos campos históricos:
+
+    Contrato ativo no mês:
+        data_inicio < início_do_mês_seguinte AND data_vencimento >= início_do_mês
+
+    Contrato inadimplente naquele mês:
+        data_inadimplencia <= fim_do_mês
+        AND (data_retorno_pagamento é nulo OR data_retorno_pagamento > fim_do_mês)
+
+    NPL = sum(saldo_hist dos inadimplentes no mês) / sum(saldo_hist ativos no mês) × 100
     """
-    base = df[df["status"] != STATUS_LIQUIDADO].copy()
+    base = df.copy()
     if base.empty:
         return pd.DataFrame(columns=["ano_mes", "npl_pct"])
 
@@ -252,16 +286,46 @@ def _monthly_npl_series(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for m in months:
         m_start = m.to_timestamp()
+        m_end = (m + 1).to_timestamp() - pd.Timedelta(seconds=1)
         m_next = (m + 1).to_timestamp()
-        mask = (base["data_inicio"] < m_next) & (base["data_vencimento"] >= m_start)
-        subset = base[mask]
-        saldo = subset["saldo_devedor"].sum()
+
+        ativos_mes = base[
+            (base["data_inicio"] < m_next) & (base["data_vencimento"] >= m_start)
+        ].copy()
+
+        if ativos_mes.empty:
+            rows.append({"ano_mes": m.strftime("%Y-%m"), "npl_pct": 0.0})
+            continue
+
+        # meses decorridos desde data_inicio até o mês m (baseado no início do mês)
+        k = (m.year - ativos_mes["data_inicio"].dt.year) * 12 + (
+            m.month - ativos_mes["data_inicio"].dt.month
+        )
+        ativos_mes["saldo_hist"] = _saldo_historico(ativos_mes, k)
+
+        saldo = ativos_mes["saldo_hist"].sum()
+
+        inad_mask = (
+            ativos_mes["data_inadimplencia"].notna()
+            & (ativos_mes["data_inadimplencia"] <= m_end)
+            & (
+                ativos_mes["data_retorno_pagamento"].isna()
+                | (ativos_mes["data_retorno_pagamento"] > m_end)
+            )
+        )
+        saldo_inad = ativos_mes.loc[inad_mask, "saldo_hist"].sum()
+
         rows.append({
             "ano_mes": m.strftime("%Y-%m"),
-            "npl_pct": subset["valor_em_atraso"].sum() / saldo * 100 if saldo > 0 else 0.0,
+            "npl_pct": saldo_inad / saldo * 100 if saldo > 0 else 0.0,
         })
 
     return pd.DataFrame(rows)
+
+
+def get_npl_series(df: pd.DataFrame) -> pd.DataFrame:
+    """Retorna o DataFrame da série temporal de NPL (ano_mes, npl_pct)."""
+    return _monthly_npl_series(df)
 
 
 def chart_evolucao_npl(df: pd.DataFrame) -> go.Figure:
@@ -283,7 +347,7 @@ def chart_evolucao_npl(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         **_LAYOUT_DEFAULTS,
         title="Evolução do NPL (%) Mês a Mês",
-        yaxis=dict(ticksuffix="%"),
+        yaxis=dict(ticksuffix="%", tickformat=".4f"),
         showlegend=False,
     )
     fig.update_xaxes(tickangle=45, nticks=24)

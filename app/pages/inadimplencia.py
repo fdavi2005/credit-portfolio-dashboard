@@ -11,6 +11,7 @@ from app.components.charts import (
     chart_aging_faixas,
     chart_atraso_por_prazo,
     chart_evolucao_npl,
+    get_npl_series,
 )
 from app.components.kpi_cards import render_kpi_row
 from app.utils.calculations import npl
@@ -164,6 +165,16 @@ st.plotly_chart(
     chart_evolucao_npl(df_filtered),
     use_container_width=True,
 )
+
+with st.expander("Ver dados da série"):
+    npl_series = get_npl_series(df_filtered)
+    st.dataframe(
+        npl_series.rename(columns={"ano_mes": "Mês", "npl_pct": "NPL (%)"})
+        .assign(**{"NPL (%)": lambda d: d["NPL (%)"].round(4)})
+        .reset_index(drop=True),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 st.divider()
 

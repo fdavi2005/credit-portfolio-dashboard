@@ -164,6 +164,33 @@ def gerar_carteira(n: int = N_CONTRATOS, seed: int = SEED) -> pd.DataFrame:
         vc_day = min(dt_inicio.day, max_day)
         dt_vencimento = date(vc_year, vc_month, vc_day)
 
+        # Datas de inadimplência
+        # - inadimplente: sempre tem data_inadimplencia, nunca tem data_retorno
+        # - ativo: 20% de chance de ter tido inadimplência no passado (ambas as datas preenchidas)
+        # - liquidado: 10% de chance de ter tido inadimplência no passado (ambas as datas preenchidas)
+        # - demais: ambas nulas
+        dt_inadimplencia = None
+        dt_retorno_pagamento = None
+
+        if status == "inadimplente":
+            # Evento entre data_inicio (+1 dia) e hoje
+            if (hoje - dt_inicio).days > 1:
+                dt_inadimplencia = data_aleatoria(rng, dt_inicio + timedelta(days=1), hoje)
+
+        elif status == "ativo" and rng.random() < 0.20:
+            # Teve inadimplência e retornou; ambas antes de hoje
+            if (hoje - dt_inicio).days > 2:
+                dt_inadimplencia = data_aleatoria(rng, dt_inicio + timedelta(days=1), hoje - timedelta(days=1))
+                if (hoje - dt_inadimplencia).days > 1:
+                    dt_retorno_pagamento = data_aleatoria(rng, dt_inadimplencia + timedelta(days=1), hoje)
+
+        elif status == "liquidado" and rng.random() < 0.10:
+            # Teve inadimplência e retornou antes de hoje
+            if (hoje - dt_inicio).days > 2:
+                dt_inadimplencia = data_aleatoria(rng, dt_inicio + timedelta(days=1), hoje - timedelta(days=1))
+                if (hoje - dt_inadimplencia).days > 1:
+                    dt_retorno_pagamento = data_aleatoria(rng, dt_inadimplencia + timedelta(days=1), hoje)
+
         registros.append(
             {
                 "cpf_anonimizado": cpfs[i],
@@ -178,6 +205,8 @@ def gerar_carteira(n: int = N_CONTRATOS, seed: int = SEED) -> pd.DataFrame:
                 "saldo_devedor": saldo,
                 "status": status,
                 "valor_em_atraso": valor_atraso,
+                "data_inadimplencia": dt_inadimplencia.isoformat() if dt_inadimplencia else None,
+                "data_retorno_pagamento": dt_retorno_pagamento.isoformat() if dt_retorno_pagamento else None,
             }
         )
 
@@ -215,3 +244,6 @@ if __name__ == "__main__":
     print(df["status"].value_counts().to_string())
     print("\nEstatísticas de taxa (% a.m.):")
     print(df["taxa_juros_mensal"].describe().round(4).to_string())
+    print("\nCampos de inadimplência histórica:")
+    print(f"  data_inadimplencia preenchida  : {df['data_inadimplencia'].notna().sum():,}")
+    print(f"  data_retorno_pagamento preench. : {df['data_retorno_pagamento'].notna().sum():,}")
