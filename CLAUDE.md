@@ -151,7 +151,7 @@ credit-portfolio-dashboard/
 # Dados reais ou sensíveis
 data/raw/
 data/processed/
-*.csv           # exceto data/mock/portfolio_mock.csv gerado pelo script
+*.csv           # exceto data/mock/*_mock.csv gerados pelos scripts de geração sintética
 *.xlsx
 *.parquet
 *.db
