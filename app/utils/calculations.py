@@ -1,19 +1,19 @@
 import pandas as pd
 
-from config.constants import STATUS_LIQUIDADO, STATUS_ATIVO
+from config.constants import STATUS_ATIVO, STATUS_EXCLUIDOS_DO_ATIVO
 
 
 def saldo_carteira_ativa(df: pd.DataFrame) -> float:
-    """Saldo total da carteira: sum(saldo_devedor) onde status != 'liquidado'."""
-    return df[df["status"] != STATUS_LIQUIDADO]["saldo_devedor"].sum()
+    """Saldo total da carteira ativa: exclui liquidados e baixados por perda."""
+    return df[~df["status"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]["saldo_devedor"].sum()
 
 
 def npl(df: pd.DataFrame) -> float:
     """NPL (%): sum(valor_em_atraso) / sum(saldo_devedor) × 100.
 
-    Base de cálculo: contratos não liquidados.
+    Base de cálculo: contratos ativos e inadimplentes (exclui liquidados e baixados por perda).
     """
-    base = df[df["status"] != STATUS_LIQUIDADO]
+    base = df[~df["status"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]
     saldo_total = base["saldo_devedor"].sum()
     if saldo_total == 0:
         return 0.0
@@ -21,8 +21,8 @@ def npl(df: pd.DataFrame) -> float:
 
 
 def taxa_media_ponderada_mensal(df: pd.DataFrame) -> float:
-    """Taxa mensal média ponderada pelo saldo devedor (%) — base: não liquidados."""
-    base = df[df["status"] != STATUS_LIQUIDADO]
+    """Taxa mensal média ponderada pelo saldo devedor (%) — base: carteira ativa."""
+    base = df[~df["status"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]
     peso_total = base["saldo_devedor"].sum()
     if peso_total == 0:
         return 0.0
@@ -36,8 +36,8 @@ def taxa_anual_equivalente(taxa_mensal_pct: float) -> float:
 
 
 def prazo_medio_ponderado(df: pd.DataFrame) -> float:
-    """Prazo residual médio ponderado pelo saldo devedor (meses) — base: não liquidados."""
-    base = df[df["status"] != STATUS_LIQUIDADO].copy()
+    """Prazo residual médio ponderado pelo saldo devedor (meses) — base: carteira ativa."""
+    base = df[~df["status"].isin(STATUS_EXCLUIDOS_DO_ATIVO)].copy()
     base["prazo_residual"] = base["prazo_meses"] - base["meses_decorridos"]
     peso_total = base["saldo_devedor"].sum()
     if peso_total == 0:

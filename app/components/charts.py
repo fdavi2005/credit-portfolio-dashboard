@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from config.constants import STATUS_COLORS, STATUS_LIQUIDADO
+from config.constants import STATUS_COLORS, STATUS_EXCLUIDOS_DO_ATIVO, STATUS_LIQUIDADO
 
 _LAYOUT_DEFAULTS = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -228,9 +228,114 @@ def chart_evolucao_originacao(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def chart_participacao_prazo_evo(evolucao: pd.DataFrame) -> go.Figure:
+    """Barras empilhadas 100%: participação de cada prazo no saldo — usa evolucao_mensal."""
+    base = evolucao[~evolucao["status_mes"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]
+    if base.empty:
+        return go.Figure()
+
+    snapshot = base.groupby(["ano_mes", "prazo_meses"])["saldo_devedor"].sum().reset_index()
+    totais = snapshot.groupby("ano_mes")["saldo_devedor"].sum().rename("total")
+    snapshot = snapshot.join(totais, on="ano_mes")
+    snapshot["participacao"] = snapshot["saldo_devedor"] / snapshot["total"] * 100
+
+    prazos = sorted(snapshot["prazo_meses"].unique())
+    fig = go.Figure()
+    for prazo in prazos:
+        d = snapshot[snapshot["prazo_meses"] == prazo].sort_values("ano_mes")
+        fig.add_trace(go.Bar(
+            x=d["ano_mes"],
+            y=d["participacao"],
+            name=f"{prazo}m",
+            marker_color=_PRAZO_COLORS.get(prazo, "#aaaaaa"),
+        ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Participação por Prazo no Saldo (% por Mês)",
+        barmode="stack",
+        yaxis=dict(ticksuffix="%", range=[0, 100]),
+        legend=dict(title="Prazo", orientation="h", y=-0.25, x=0),
+    )
+    fig.update_xaxes(tickangle=45, nticks=24)
+    return fig
+
+
+def chart_evolucao_saldo_prazo_evo(evolucao: pd.DataFrame) -> go.Figure:
+    """Área empilhada: evolução do saldo devedor por prazo — usa evolucao_mensal."""
+    base = evolucao[~evolucao["status_mes"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]
+    if base.empty:
+        return go.Figure()
+
+    snapshot = base.groupby(["ano_mes", "prazo_meses"])["saldo_devedor"].sum().reset_index()
+
+    prazos = sorted(snapshot["prazo_meses"].unique())
+    fig = go.Figure()
+    for prazo in prazos:
+        d = snapshot[snapshot["prazo_meses"] == prazo].sort_values("ano_mes")
+        color = _PRAZO_COLORS.get(prazo, "#aaaaaa")
+        fig.add_trace(go.Scatter(
+            x=d["ano_mes"],
+            y=d["saldo_devedor"],
+            name=f"{prazo}m",
+            mode="lines",
+            stackgroup="one",
+            line=dict(width=0.5, color=color),
+            fillcolor=color,
+        ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Evolução do Saldo Devedor por Prazo (R$)",
+        yaxis=dict(tickprefix="R$ "),
+        legend=dict(title="Prazo", orientation="h", y=-0.25, x=0),
+    )
+    fig.update_xaxes(tickangle=45, nticks=24)
+    return fig
+
+
+def chart_evolucao_taxa_faixas_evo(evolucao: pd.DataFrame) -> go.Figure:
+    """Área empilhada 100%: participação de cada faixa de taxa no saldo — usa evolucao_mensal."""
+    base = evolucao[~evolucao["status_mes"].isin(STATUS_EXCLUIDOS_DO_ATIVO)].copy()
+    base["faixa_taxa"] = pd.cut(
+        base["taxa_juros_mensal"],
+        bins=_TAXA_BINS,
+        labels=_TAXA_LABELS,
+        right=False,
+    ).astype(str)
+
+    snapshot = base.groupby(["ano_mes", "faixa_taxa"])["saldo_devedor"].sum().reset_index()
+    if snapshot.empty:
+        return go.Figure()
+
+    totais = snapshot.groupby("ano_mes")["saldo_devedor"].sum().rename("total")
+    snapshot = snapshot.join(totais, on="ano_mes")
+    snapshot["participacao"] = snapshot["saldo_devedor"] / snapshot["total"] * 100
+
+    fig = go.Figure()
+    for faixa in _TAXA_LABELS:
+        d = snapshot[snapshot["faixa_taxa"] == faixa].sort_values("ano_mes")
+        color = _TAXA_FAIXA_COLORS.get(faixa, "#aaaaaa")
+        fig.add_trace(go.Scatter(
+            x=d["ano_mes"],
+            y=d["participacao"],
+            name=f"{faixa}%",
+            mode="lines",
+            stackgroup="one",
+            line=dict(width=0.5, color=color),
+            fillcolor=color,
+        ))
+    fig.update_layout(
+        **_LAYOUT_DEFAULTS,
+        title="Participação por Faixa de Taxa no Saldo (% por Mês)",
+        yaxis=dict(ticksuffix="%", range=[0, 100]),
+        legend=dict(title="Taxa (% a.m.)", orientation="h", y=-0.25, x=0),
+    )
+    fig.update_xaxes(tickangle=45, nticks=24)
+    return fig
+
+
 def chart_distribuicao_taxa(df: pd.DataFrame) -> go.Figure:
     """Histograma: distribuição de taxas mensais na carteira ativa."""
-    base = df[df["status"] != STATUS_LIQUIDADO]
+    base = df[~df["status"].isin(STATUS_EXCLUIDOS_DO_ATIVO)]
     fig = px.histogram(
         base,
         x="taxa_juros_mensal",

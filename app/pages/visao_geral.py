@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-# Garante que o root do projeto está no sys.path ao rodar via `streamlit run app/main.py`
+# Garante que o root do projeto está no sys.path ao rodar via `streamlit run app/inicio.py`
 _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -12,9 +12,9 @@ from app.components.charts import (
     chart_distribuicao_status,
     chart_distribuicao_taxa,
     chart_evolucao_originacao,
-    chart_evolucao_saldo_prazo,
-    chart_evolucao_taxa_faixas,
-    chart_participacao_prazo,
+    chart_evolucao_saldo_prazo_evo,
+    chart_evolucao_taxa_faixas_evo,
+    chart_participacao_prazo_evo,
 )
 from app.components.kpi_cards import render_kpi_row
 from app.utils.calculations import (
@@ -27,14 +27,17 @@ from app.utils.calculations import (
 )
 from app.utils.data_loader import load_data
 from app.utils.formatters import (
-    format_currency,
     format_currency_compact,
     format_currency_k,
-    format_months,
     format_number,
     format_percent,
 )
-from config.constants import STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO
+from config.constants import (
+    STATUS_ATIVO,
+    STATUS_BAIXADO_POR_PERDA,
+    STATUS_INADIMPLENTE,
+    STATUS_LIQUIDADO,
+)
 
 st.set_page_config(
     page_title="Visão Geral — Carteira",
@@ -82,7 +85,25 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 # Dados
 # ---------------------------------------------------------------------------
-df = load_data()
+ANO_MES_REF = "2026-03"
+_CONTRATOS_ATTRS = [
+    "id_contrato", "cpf_anonimizado", "taxa_juros_mensal",
+    "prazo_meses", "valor_contrato", "data_inicio",
+]
+
+data = load_data()
+df_contratos = data["contratos"]
+df_evolucao = data["evolucao"]
+
+# Evolucao enriquecida com atributos estáticos do contrato
+df_evolucao_merged = df_evolucao.merge(df_contratos[_CONTRATOS_ATTRS], on="id_contrato")
+
+# Snapshot do último mês disponível (2026-03) — base para KPIs e gráficos estáticos
+df_snapshot = (
+    df_evolucao_merged[df_evolucao_merged["ano_mes"] == ANO_MES_REF]
+    .rename(columns={"status_mes": "status", "mes_vida": "meses_decorridos"})
+    .copy()
+)
 
 # ---------------------------------------------------------------------------
 # Sidebar: filtros
@@ -92,12 +113,12 @@ with st.sidebar:
 
     status_sel = st.multiselect(
         "Status",
-        options=[STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO],
-        default=[STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO],
+        options=[STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO, STATUS_BAIXADO_POR_PERDA],
+        default=[STATUS_ATIVO, STATUS_INADIMPLENTE, STATUS_LIQUIDADO, STATUS_BAIXADO_POR_PERDA],
         key="vg_status",
     )
 
-    prazos_disponiveis = sorted(df["prazo_meses"].unique().tolist())
+    prazos_disponiveis = sorted(df_snapshot["prazo_meses"].unique().tolist())
     prazo_sel = st.multiselect(
         "Prazo (meses)",
         options=prazos_disponiveis,
@@ -108,7 +129,7 @@ with st.sidebar:
     st.divider()
     st.markdown("**Originação**")
 
-    anos_disponiveis = sorted(df["data_inicio"].dt.year.unique().tolist())
+    anos_disponiveis = sorted(df_snapshot["data_inicio"].dt.year.unique().tolist())
     anos_default = anos_disponiveis[-3:]
     ano_sel = st.multiselect(
         "Ano",
@@ -117,15 +138,27 @@ with st.sidebar:
         key="vg_ano_originacao",
     )
 
-    st.caption("Data de referência: 30/03/2026")
+    st.caption(f"Data de referência: {ANO_MES_REF}")
 
-df_filtered = df[
-    df["status"].isin(status_sel) & df["prazo_meses"].isin(prazo_sel)
+# Snapshot filtrado por status e prazo — base para KPIs e gráficos de distribuição
+df_filtered = df_snapshot[
+    df_snapshot["status"].isin(status_sel) & df_snapshot["prazo_meses"].isin(prazo_sel)
 ]
-df_filtered_anos = (
-    df_filtered[df_filtered["data_inicio"].dt.year.isin(ano_sel)]
-    if ano_sel else df_filtered.iloc[:0]
+
+# IDs dos contratos que passam no filtro de status+prazo
+ids_filtered = set(df_filtered["id_contrato"])
+
+# Subconjunto dos contratos filtrados com ano de originação selecionado
+ids_anos = (
+    set(df_filtered[df_filtered["data_inicio"].dt.year.isin(ano_sel)]["id_contrato"])
+    if ano_sel else set()
 )
+
+# Série temporal completa para os contratos filtrados (todos os meses, não só 2026-03)
+df_evo_anos = df_evolucao_merged[df_evolucao_merged["id_contrato"].isin(ids_anos)]
+
+# Contratos filtrados por ano — para o gráfico de originação
+df_contratos_anos = df_contratos[df_contratos["id_contrato"].isin(ids_anos)]
 
 # ---------------------------------------------------------------------------
 # Cabeçalho
@@ -135,7 +168,7 @@ st.markdown(
     <div class="header-banner">
         <h1>Carteira de Crédito</h1>
         <p>Consignado pré-fixado &nbsp;·&nbsp; {format_number(len(df_filtered))} contratos exibidos
-        (total: {format_number(len(df))})</p>
+        (total: {format_number(len(df_contratos))})</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -146,7 +179,7 @@ if df_filtered.empty:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Cálculo dos KPIs
+# Cálculo dos KPIs (snapshot 2026-03)
 # ---------------------------------------------------------------------------
 saldo_total = saldo_carteira_ativa(df_filtered)
 n_ativos = int((df_filtered["status"] == STATUS_ATIVO).sum())
@@ -234,7 +267,7 @@ with col1:
 
 with col2:
     st.plotly_chart(
-        chart_participacao_prazo(df_filtered_anos),
+        chart_participacao_prazo_evo(df_evo_anos),
         use_container_width=True,
     )
 
@@ -242,7 +275,7 @@ with col2:
 # Gráficos — linha 2
 # ---------------------------------------------------------------------------
 st.plotly_chart(
-    chart_evolucao_saldo_prazo(df_filtered_anos),
+    chart_evolucao_saldo_prazo_evo(df_evo_anos),
     use_container_width=True,
 )
 
@@ -250,7 +283,7 @@ st.plotly_chart(
 # Gráficos — linha 3
 # ---------------------------------------------------------------------------
 st.plotly_chart(
-    chart_evolucao_taxa_faixas(df_filtered_anos),
+    chart_evolucao_taxa_faixas_evo(df_evo_anos),
     use_container_width=True,
 )
 
@@ -258,7 +291,7 @@ st.plotly_chart(
 # Gráficos — linha 4
 # ---------------------------------------------------------------------------
 st.plotly_chart(
-    chart_evolucao_originacao(df_filtered_anos),
+    chart_evolucao_originacao(df_contratos_anos),
     use_container_width=True,
 )
 
