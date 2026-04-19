@@ -32,7 +32,7 @@ Dependências declaradas em `requirements.txt`. Não adicionar dependências sem
 ```
 credit-portfolio-dashboard/
 ├── app/
-│   ├── main.py                  # entrypoint do Streamlit (st.set_page_config, navegação raiz)
+│   ├── inicio.py                # entrypoint do Streamlit (st.set_page_config, navegação raiz)
 │   ├── pages/
 │   │   ├── visao_geral.py       # página inicial: KPIs macro da carteira
 │   │   ├── carteira.py          # análise de contratos: prazo, taxa, concentração
