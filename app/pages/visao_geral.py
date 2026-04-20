@@ -118,7 +118,10 @@ with st.sidebar:
         key="vg_status",
     )
 
-    prazos_disponiveis = sorted(df_snapshot["prazo_meses"].unique().tolist())
+    # Prazo é atributo estático do contrato (não muda ao longo do tempo); a fonte
+    # correta é df_contratos, que contém toda a carteira — incluindo contratos
+    # liquidados que não aparecem no snapshot de 2026-03.
+    prazos_disponiveis = sorted(df_contratos["prazo_meses"].unique().tolist())
     prazo_sel = st.multiselect(
         "Prazo (meses)",
         options=prazos_disponiveis,
@@ -129,7 +132,9 @@ with st.sidebar:
     st.divider()
     st.markdown("**Originação**")
 
-    anos_disponiveis = sorted(df_snapshot["data_inicio"].dt.year.unique().tolist())
+    # Ano de originação também é atributo estático; df_contratos garante que todos
+    # os anos apareçam, mesmo os de contratos já liquidados no snapshot.
+    anos_disponiveis = sorted(df_contratos["data_inicio"].dt.year.unique().tolist())
     anos_default = anos_disponiveis[-3:]
     ano_sel = st.multiselect(
         "Ano",
@@ -140,25 +145,35 @@ with st.sidebar:
 
     st.caption(f"Data de referência: {ANO_MES_REF}")
 
-# Snapshot filtrado por status e prazo — base para KPIs e gráficos de distribuição
+# df_filtered: snapshot de 2026-03 aplicando filtros de status e prazo.
+# Usado exclusivamente para KPIs e gráficos que representam o estado atual da
+# carteira (distribuição de status, distribuição de taxas). O status é um estado
+# pontual — só faz sentido filtrá-lo no snapshot do mês de referência.
 df_filtered = df_snapshot[
     df_snapshot["status"].isin(status_sel) & df_snapshot["prazo_meses"].isin(prazo_sel)
 ]
 
-# IDs dos contratos que passam no filtro de status+prazo
-ids_filtered = set(df_filtered["id_contrato"])
-
-# Subconjunto dos contratos filtrados com ano de originação selecionado
-ids_anos = (
-    set(df_filtered[df_filtered["data_inicio"].dt.year.isin(ano_sel)]["id_contrato"])
+# ids_temporal: conjunto de contratos que passam nos filtros de prazo e ano de
+# originação, derivado de df_contratos (não do snapshot). Isso garante que
+# contratos liquidados antes de 2026-03 — ausentes do snapshot — sejam incluídos
+# nos gráficos temporais, que precisam de toda a série histórica. O filtro de
+# status não é aplicado aqui porque, nos gráficos de evolução, o status varia ao
+# longo do tempo e não pode ser restringido pelo estado atual de 2026-03.
+ids_temporal = (
+    set(
+        df_contratos[
+            df_contratos["prazo_meses"].isin(prazo_sel)
+            & df_contratos["data_inicio"].dt.year.isin(ano_sel)
+        ]["id_contrato"]
+    )
     if ano_sel else set()
 )
 
-# Série temporal completa para os contratos filtrados (todos os meses, não só 2026-03)
-df_evo_anos = df_evolucao_merged[df_evolucao_merged["id_contrato"].isin(ids_anos)]
+# Série temporal completa para os contratos selecionados (todos os meses disponíveis).
+df_evo_anos = df_evolucao_merged[df_evolucao_merged["id_contrato"].isin(ids_temporal)]
 
-# Contratos filtrados por ano — para o gráfico de originação
-df_contratos_anos = df_contratos[df_contratos["id_contrato"].isin(ids_anos)]
+# Tabela de contratos para o gráfico de originação — atributos estáticos, sem snapshot.
+df_contratos_anos = df_contratos[df_contratos["id_contrato"].isin(ids_temporal)]
 
 # ---------------------------------------------------------------------------
 # Cabeçalho
