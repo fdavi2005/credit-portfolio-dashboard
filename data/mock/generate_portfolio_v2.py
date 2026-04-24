@@ -231,22 +231,9 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
             dt_mes = adicionar_meses(dt_inicio, mes_vida)
             ano_mes = f"{dt_mes.year}-{dt_mes.month:02d}"
 
-            # Contrato já baixado: permanece na série com zeros
+            # Contrato já baixado: encerra o loop imediatamente (BUG-3)
             if baixado:
-                evolucao.append({
-                    "id_contrato": id_contrato,
-                    "ano_mes": ano_mes,
-                    "mes_vida": mes_vida,
-                    "saldo_devedor": 0.0,
-                    "status_mes": "baixado_por_perda",
-                    "dias_atraso": dias_atraso,
-                    "valor_em_atraso": 0.0,
-                    "data_inadimplencia": data_inadimplencia,
-                    "data_regularizacao": data_regularizacao,
-                    "pcld": 0.0,
-                    "perfil_inadimplencia": perfil_atual,
-                })
-                continue
+                break
 
             if inadimplente:
                 # Saldo cresce com juros contratuais, sem amortização
