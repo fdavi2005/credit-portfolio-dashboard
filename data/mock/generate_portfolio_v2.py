@@ -293,6 +293,7 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                 if rng.random() < taxa_cura_atual:
                     inadimplente = False
                     data_regularizacao = dt_mes.isoformat()
+                    data_inadimplencia = None
 
                     saldo_price_cura = round(calcular_saldo(pv, taxa, prazo, mes_vida), 2)
                     # saldo_inad já cresceu com juros neste mês antes da cura
@@ -413,7 +414,7 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                         inadimplente = True
                         data_inadimplencia = dt_mes.isoformat()
                         data_regularizacao = None
-                        dias_atraso = 30
+                        dias_atraso = 0
                         saldo_inad = round(saldo * (1 + taxa), 2)
                         status_mes = "inadimplente"
                         valor_em_atraso = round(parcela, 2)
