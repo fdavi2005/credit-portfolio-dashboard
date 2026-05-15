@@ -230,8 +230,6 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
             (DATA_REFERENCIA.year - dt_inicio.year) * 12
             + (DATA_REFERENCIA.month - dt_inicio.month)
         )
-        meses_ativos = max(1, min(meses_ate_ref, prazo))
-
         # --- Estado do contrato ---
         inadimplente = False
         baixado = False
@@ -252,13 +250,21 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
         dias_atraso_congelados = 0  # cenário 3: dias_atraso congelados
         abate_mensal_cen3 = None    # cenário 3: valor fixo de abate (None = não calculado)
 
-        for mes_vida in range(1, meses_ativos + 1):
+        mes_vida = 0
+        while True:
+            mes_vida += 1
+
+            # Encerra após write-off (BUG-3) ou ao ultrapassar DATA_REFERENCIA
+            if baixado or mes_vida > max(1, meses_ate_ref):
+                break
+            # Contratos não inadimplentes encerram no prazo original;
+            # inadimplentes continuam além do prazo até cura, write-off ou
+            # DATA_REFERENCIA (BUG-6)
+            if not inadimplente and mes_vida > prazo:
+                break
+
             dt_mes = adicionar_meses(dt_inicio, mes_vida)
             ano_mes = f"{dt_mes.year}-{dt_mes.month:02d}"
-
-            # Contrato já baixado por perda: encerra o loop (BUG-3)
-            if baixado:
-                break
 
             cenario_cura_row = None  # valor padrão para a coluna nesta linha
 
