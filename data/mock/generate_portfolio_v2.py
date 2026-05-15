@@ -335,6 +335,10 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                         # Pagamento gradual: sorteia fator_extra fixo para este ciclo
                         em_cura = True
                         fator_extra = round(float(rng.uniform(0.01, 0.15)), 4)
+                        # BUG-7: contrato prorrogado — amortização Price encerrou;
+                        # saldo real é o saldo_inad_acumulado restante.
+                        if mes_vida > prazo:
+                            saldo = round(saldo_inad_acumulado, 2)
                         valor_em_atraso = saldo_inad_acumulado
                         # PCLD sobre saldo_devedor completo (Opção B / Previc)
                         pcld = round(pcld_percentual(dias_atraso) * saldo, 2)
@@ -342,7 +346,10 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                     else:  # "cen3"
                         # Só a parcela: congela tudo até os últimos 3 meses
                         em_cura = True
-                        pcld_congelada = round(pcld_percentual(dias_atraso) * saldo_price_cura, 2)
+                        # BUG-7: contrato prorrogado — saldo real é saldo_inad_acumulado.
+                        if mes_vida > prazo:
+                            saldo = round(saldo_inad_acumulado, 2)
+                        pcld_congelada = round(pcld_percentual(dias_atraso) * saldo, 2)
                         dias_atraso_congelados = dias_atraso
                         abate_mensal_cen3 = None
                         valor_em_atraso = saldo_inad_acumulado
@@ -359,7 +366,12 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
             # Ramo 2: contrato ativo (normal ou em processo de cura)
             # ------------------------------------------------------------------
             else:
-                saldo = round(calcular_saldo(pv, taxa, prazo, mes_vida), 2)
+                # BUG-7: contratos prorrogados (mes_vida > prazo) já completaram
+                # a amortização Price — o saldo real é o saldo_inad_acumulado restante.
+                if mes_vida > prazo:
+                    saldo = round(saldo_inad_acumulado, 2)
+                else:
+                    saldo = round(calcular_saldo(pv, taxa, prazo, mes_vida), 2)
 
                 if em_cura:
                     # Durante a cura não há novo default (contrato está cooperando)
