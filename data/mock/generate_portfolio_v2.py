@@ -260,7 +260,7 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
             # Contratos não inadimplentes encerram no prazo original;
             # inadimplentes continuam além do prazo até cura, write-off ou
             # DATA_REFERENCIA (BUG-6)
-            if not inadimplente and mes_vida > prazo:
+            if not inadimplente and not em_cura and saldo_inad_acumulado == 0 and mes_vida > prazo:
                 break
 
             dt_mes = adicionar_meses(dt_inicio, mes_vida)
@@ -392,6 +392,8 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                             dias_atraso = 0
                             em_cura = False
                             cenario_cura_atual = None
+                        if mes_vida > prazo:
+                            saldo = round(max(0.0, saldo_inad_acumulado), 2)
                         valor_em_atraso = saldo_inad_acumulado
                         # PCLD sobre saldo_devedor completo (Previc / Opção B)
                         pcld = round(pcld_percentual(dias_atraso) * saldo, 2)
@@ -416,7 +418,8 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                                 dias_atraso = 0
                                 em_cura = False
                                 cenario_cura_atual = None
-
+                        if mes_vida > prazo:
+                            saldo = round(max(0.0, saldo_inad_acumulado), 2)
                         # Aplica valores congelados (ou zera se cure completou)
                         if em_cura:
                             dias_atraso = dias_atraso_congelados
