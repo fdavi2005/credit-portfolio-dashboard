@@ -423,7 +423,7 @@ def gerar_contratos(n: int = N_CONTRATOS, seed: int = SEED):
                         # Aplica valores congelados (ou zera se cure completou)
                         if em_cura:
                             dias_atraso = dias_atraso_congelados
-                            pcld = pcld_congelada
+                            pcld = round(pcld_percentual(dias_atraso_congelados) * saldo_inad_acumulado, 2)
                         else:
                             dias_atraso = 0
                             pcld = 0.0
